@@ -1,0 +1,18 @@
+defmodule Test1
+
+defvar x:int, y:int
+end
+
+defexpression (forall y in dominio . x)
+end
+
+defoperator mayor : int -> int -> bool
+end
+
+defexpression (forall x in dominio . (neg x and y))
+end
+
+defexpression (exists x in dominio . (x > x))
+end
+
+end
