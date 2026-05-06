@@ -1,167 +1,132 @@
 module Syntax
 
-layout WS = [\ \t]*;
+layout WS = [\ \t\n\r]*  !>> [\ \t\n\r];
 
-
-// ELEMENTO DE INICIO MODULE
 start syntax Module 
-    = modulo: 'defmodule' Identifier name LineSpace?
-    ('using' Identifier LineSpace)* imports 
+    = modulo: 'defmodule' Identifier name
     Element* elements
     'end'
 ;
 
-// ELEMENT
 syntax Element
-    = ( Space
+    = Space
     | Rule
     | Variable
     | Expression
     | Operator
-    | Defer) LineSpace    // CORRECCIÓN 4: se añade Defer como posible elemento
+    | Defer
 ;
 
-// SPACE
 syntax Space
-    = spaceDef:
-    "defspace" Identifier name
-    ("\<" Identifier parent)?
-    LineSpace? 'end'
+    = spaceDef: "defspace" Identifier name 'end'
+    | spaceDefWithParent: "defspace" Identifier name "\<" Identifier parent 'end'
 ;
 
-// OPERATOR
 syntax Operator
     = operatorDef:
-    'defoperator' Identifier name ':' (Identifier '-\>')+ Identifier returnType
-    LineSpace? 'end'
+    'defoperator' Identifier name ':' {Identifier '-\>'}+ parameters 'end'
 ;
 
-// VARIABLE
 syntax Variable
     = varDef:
-    'defvar' List (',' List)* vars
-    LineSpace? 'end'
+    'defvar' {VarDecl ','}+ vars
+    'end'
 ;
 
-// LIST 
-syntax List
-    = lista:
-    Identifier (':' Identifier)?
+syntax VarDecl
+    = varDeclTyped: Identifier name ':' Identifier varType
+    | varDeclSimple: Identifier name
 ;
 
-// RULE 
 syntax Rule
     = ruleDef:
-    'defrule' '(' Application leftSide ')' "-\>" '(' Application rightSide ')' 
-    LineSpace? 'end'
+    'defrule' '(' Application leftSide ')' '-\>' '(' Application rightSide ')'
+    'end'
 ;
 
-// CORRECCIÓN 2: Application ahora permite argumentos que sean también Applications
-// (recursión), además de simples Identifiers.
 syntax Application
     = application:
-    Identifier '(' AppArg+ ')'
+    Identifier name '(' {AppArg ','}+ arguments ')'
 ;
 
 syntax AppArg
-    = argId: Identifier
-    | argApp: Application    // argumento puede ser una aplicación anidada
+    = argApp: Application
+    | argId:  Identifier
 ;
 
-// ATTRIBUTE
 syntax Attribute
     = attribute:
-    '[' List+ ']'
+    '[' {VarDecl ','}+ lists ']'
 ;
 
-// QUANTIFIER 
-syntax Quantifier
-    = 'forall' 
-    | 'exists' 
-;
-
-// LOGIC OPERATOR
-syntax LogicOperator
-    = '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
-;
-
-// PRIMARY
-syntax Primary
-    = Identifier
-    | IntLiteral
-    | '(' OrExp ')'
-;
-
-// CORRECCIÓN 4: Defer como construcción del lenguaje
 syntax Defer
     = deferDef:
     'defer' Identifier name
-    LineSpace? 'end'
+    'end'
 ;
 
-// EXPRESSION 
 syntax Expression
     = expressionDef:
-    'defexpression' GeneralExp LineSpace? 'end'
+    'defexpression' GeneralExp genExp
+    'end'
 ;
 
-// CORRECCIÓN 3: GeneralExp con cuantificadores SOLO en este nivel (solo se
-// usa dentro de defexpression). Los cuantificadores obligatoriamente tienen un
-// punto "." antes del cuerpo o un atributo, nunca caen a OrExp directamente.
-// Esto evita que forall x . (x<=2) sea parte de una expresión compuesta.
 syntax GeneralExp
-    = quantDot:    '(' Quantifier Identifier ('in' Identifier)? '.' GeneralExp body ')'
-    | quantAttr:   '(' Quantifier Identifier ('in' Identifier)? Attribute attr ')'
-    | orExpGen:    OrExp
+    = quantDotIn:    '(' Quantifier q Identifier id 'in' Identifier domain '.' GeneralExp body ')'
+    | quantDot:      '(' Quantifier q Identifier id '.' GeneralExp body ')'
+    | quantAttrIn:   '(' Quantifier q Identifier id 'in' Identifier domain Attribute attr ')'
+    | quantAttr:     '(' Quantifier q Identifier id Attribute attr ')'
+    | orExpGen:      OrExp orExp
 ;
 
-// OR
+syntax Quantifier
+    = forall: 'forall'
+    | exists: 'exists'
+;
+
 syntax OrExp
-    = left OrExp 'or' AndExp
-    | AndExp
+    = orOp:     OrExp left 'or' AndExp right
+    | orAndExp: AndExp andExp
 ;
 
-// AND
 syntax AndExp
-    = left AndExp 'and' NegExp
-    | NegExp
+    = andOp:     AndExp left 'and' NegExp right
+    | andNegExp: NegExp negExp
 ;
 
-// NEG
 syntax NegExp
-    = negOp: 'neg' NegExp
-    | RelExp
+    = negOp:      'neg' NegExp inner
+    | relExpWrap: RelExp relExp
 ;
 
-// RELACIONES
 syntax RelExp
-    = relBinary: Primary LogicOperator Primary 
-    | Primary
+    = relBinary:  Primary left LogicOperator op Primary right
+    | relPrimary: Primary primary
 ;
 
-// CHARLITERAL
-lexical CharLiteral = (Letter | IntLiteral | "-")+
+syntax LogicOperator
+    = eqOp:    '=\>'
+    | equivOp: '≡'
+    | gtOp:    '\>'
+    | ltOp:    '\<'
+    | leOp:    '\<='
+    | geOp:    '\>='
+    | neOp:    '\<\>'
 ;
 
-// Letter
-lexical Letter = [a-zA-Z]
+syntax Primary
+    = primaryId:    Identifier name
+    | primaryInt:   IntLiteral number
+    | primaryParen: '(' OrExp orExp ')'
 ;
 
-// IDENTIFIER
-lexical Identifier = Letter CharLiteral? \ Reserved
-;
+lexical Identifier = Letter (Letter | [0-9] | "-")* \ Reserved;
+lexical Letter     = [a-zA-Z];
+lexical IntLiteral = [0-9]+;
 
-// INTLITERAL
-lexical IntLiteral = [0-9]+
-;
-
-lexical LineSpace = ('\n' | '\r\n')+
-;
-
-keyword Reserved 
+keyword Reserved
     = "defmodule" | "using" | "defspace" | "defrule" | "end"
     | "defoperator" | "defexpression" | "forall" | "exists"
-    | "defvar" | "defer"                     // CORRECCIÓN 4: "defer" como reservado
+    | "defvar" | "defer"
     | "and" | "or" | "neg" | "in"
-    | '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
 ;

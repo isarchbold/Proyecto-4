@@ -1,25 +1,24 @@
 module Plugin
 
-import IO;
-import ParseTree;
 import util::Reflective;
 import util::IDEServices;
 import util::LanguageServer;
-import Relation;
-
-import Syntax;
+import ParseTree;
+import Parse;
+import IO;
 
 PathConfig pcfg = getProjectPathConfig(|project://verilang|);
-Language tdslLang = language(pcfg, "TDSL", "tdsl", "Plugin", "contribs");
+
+Language veriLang = language(pcfg, "VeriLang", "vl", "Plugin", "contribs");
 
 set[LanguageService] contribs() = {
     parser(start[Module] (str program, loc src) {
-        println("Run parser");
-        return parse(#start[Module], program, src);
+        println("Parsing: <src>");
+        return parseStr(program);
     })
 };
 
 void main() {
-    registerLanguage(tdslLang);
-    println("Plugin loaded!");
+    registerLanguage(veriLang);
+    println("VeriLang plugin loaded!");
 }
