@@ -7,11 +7,12 @@ data Module
 
 //Element
 data Element 
-    = space(Space space)
-    | rule(Rule rule)
-    | variable(Variable variable)
-    | expression(Expression expression)
-    | operator(Operator operator);
+    = spaceElem(Space space)
+    | ruleElem(Rule rule)
+    | variableElem(Variable variable)
+    | expressionElem(Expression expression)
+    | operatorElem(Operator operator)
+    | deferElem(Defer def);
 
 //Space
 data Space
@@ -26,30 +27,38 @@ data Operator
 data Variable
     = varDef(list[VarDecl] vars);
 
-//Lista 
-data VarDecl // aca cambie el nombre de lista porque el parser se estaba confundiendo con la palabra reservada list
-    = lista(str name)
-    | listaTyped(str name, str varType); // aca cambie el nombre de varType porque el parser se estaba confundiendo con la palabra reservada type
+// VarDecl
+data VarDecl
+    = varDeclSimple(str name)
+    | varDeclTyped(str name, str varType);
 
 //Rule
 data Rule 
     = ruleDef(Application leftSide, Application rightSide);
 
-//Application
+// Application permite anidar Applications como argumentos
 data Application
-    = application(str name, list[str] arguments);
+    = application(str name, list[AppArg] arguments);
+
+data AppArg
+    = argId(str name)
+    | argApp(Application app);
 
 //Attribute
 data Attribute
     = attribute(list[VarDecl] lists); 
 
-//Top
+// Defer
+data Defer
+    = deferDef(str name);
+
+// GeneralExp se usa solo en defexpression
 data GeneralExp
-  = quantExp(Quantifier q, str id, GeneralExp body)
-  | quantExpIn(Quantifier q, str id, str domain, GeneralExp body)
-  | quantExpAttr(Quantifier q, str id, Attribute attr)
-  | quantExpInAttr(Quantifier q, str id, str domain, Attribute attr)
-  | orExp(OrExp exp);
+    = quantExp(Quantifier q, str id, GeneralExp body)
+    | quantExpIn(Quantifier q, str id, str domain, GeneralExp body)
+    | quantExpAttr(Quantifier q, str id, Attribute attr)
+    | quantExpInAttr(Quantifier q, str id, str domain, Attribute attr)
+    | genOrExp(OrExp orExp);
 
 //Quantifier
 data Quantifier
@@ -58,43 +67,36 @@ data Quantifier
 
 //Or
 data OrExp
-    = or(OrExp left, AndExp right)
-    | andExp(AndExp exp);
+    = orOp(OrExp left, AndExp right)
+    | orAndExp(AndExp andExp);
 
 //And
 data AndExp
-    = and(AndExp left, NegExp right)
-    | negExp(NegExp exp);
+    = andOp(AndExp left, NegExp right)
+    | andNegExp(NegExp negExp);
 
-//Neg
+// Neg — nombres de campo únicos entre constructores:
+//   negOp  usa "inner"  (tipo NegExp)
+//   relExpWrap usa "relExp" (tipo RelExp)
 data NegExp
-    = neg(NegExp exp)
-    | relExp(RelExp exp);
+    = negOp(NegExp inner)
+    | relExpWrap(RelExp relExp);
 
-//relaciones
+// RelExp con nombres de campo únicos
 data RelExp
-    = relExp(Primary left, LogicOperator op, Primary right)
-    | primary(Primary p);
+    = relBinary(Primary left, LogicOperator op, Primary right)
+    | relPrimary(Primary primary);
 
 //Logic operator
 data LogicOperator
-    = op(str operator);
+    = logicOp(str operator);
 
 //Primary
 data Primary   
-    = id(str name)
-    | intLiteral(int number)
-    | parenthesis(OrExp exp);
+    = primaryId(str name)
+    | primaryInt(int number)
+    | primaryParen(OrExp orExp);
 
-//expression
+//Expression
 data Expression
-    = expressionDef(GeneralExp exp);
-
-
-
-
-
-
-
-
-
+    = expressionDef(GeneralExp genExp);

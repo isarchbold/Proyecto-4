@@ -3,7 +3,7 @@ module Syntax
 layout WS = [\ \t]*;
 
 
-//ELEMENTO DE INICIO MODULE
+// ELEMENTO DE INICIO MODULE
 start syntax Module 
     = modulo: 'defmodule' Identifier name LineSpace?
     ('using' Identifier LineSpace)* imports 
@@ -11,13 +11,14 @@ start syntax Module
     'end'
 ;
 
-//ELEMENT
+// ELEMENT
 syntax Element
     = ( Space
-    |  Rule
+    | Rule
     | Variable
     | Expression
-    | Operator) LineSpace
+    | Operator
+    | Defer) LineSpace    // CORRECCIÓN 4: se añade Defer como posible elemento
 ;
 
 // SPACE
@@ -28,37 +29,43 @@ syntax Space
     LineSpace? 'end'
 ;
 
-//OPERATOR
+// OPERATOR
 syntax Operator
     = operatorDef:
     'defoperator' Identifier name ':' (Identifier '-\>')+ Identifier returnType
-     LineSpace? 'end'
+    LineSpace? 'end'
 ;
 
-//VARIABLE
+// VARIABLE
 syntax Variable
     = varDef:
-    'defvar' List (','List)* vars
-     LineSpace? 'end'
+    'defvar' List (',' List)* vars
+    LineSpace? 'end'
 ;
 
-//LIST 
+// LIST 
 syntax List
     = lista:
     Identifier (':' Identifier)?
 ;
 
-//RULE 
+// RULE 
 syntax Rule
     = ruleDef:
     'defrule' '(' Application leftSide ')' "-\>" '(' Application rightSide ')' 
     LineSpace? 'end'
 ;
 
-//APPLICATION 
+// CORRECCIÓN 2: Application ahora permite argumentos que sean también Applications
+// (recursión), además de simples Identifiers.
 syntax Application
     = application:
-    Identifier '(' Identifier+ ')'
+    Identifier '(' AppArg+ ')'
+;
+
+syntax AppArg
+    = argId: Identifier
+    | argApp: Application    // argumento puede ser una aplicación anidada
 ;
 
 // ATTRIBUTE
@@ -67,15 +74,15 @@ syntax Attribute
     '[' List+ ']'
 ;
 
-//QUANTIFIER 
+// QUANTIFIER 
 syntax Quantifier
-    = quantifier: 'forall' | 'exists' 
+    = 'forall' 
+    | 'exists' 
 ;
 
-//LOGIC OPERATOR
+// LOGIC OPERATOR
 syntax LogicOperator
-    = op:
-     '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
+    = '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
 ;
 
 // PRIMARY
@@ -85,61 +92,76 @@ syntax Primary
     | '(' OrExp ')'
 ;
 
-//EXPRESSION 
+// CORRECCIÓN 4: Defer como construcción del lenguaje
+syntax Defer
+    = deferDef:
+    'defer' Identifier name
+    LineSpace? 'end'
+;
+
+// EXPRESSION 
 syntax Expression
-    = expressionDef :
+    = expressionDef:
     'defexpression' GeneralExp LineSpace? 'end'
 ;
 
-// TOP
+// CORRECCIÓN 3: GeneralExp con cuantificadores SOLO en este nivel (solo se
+// usa dentro de defexpression). Los cuantificadores obligatoriamente tienen un
+// punto "." antes del cuerpo o un atributo, nunca caen a OrExp directamente.
+// Esto evita que forall x . (x<=2) sea parte de una expresión compuesta.
 syntax GeneralExp
-    = exp: '(' Quantifier Identifier ('in' Identifier)?  (('.' GeneralExp) | Attribute attr ) ')'
-    | OrExp
+    = quantDot:    '(' Quantifier Identifier ('in' Identifier)? '.' GeneralExp body ')'
+    | quantAttr:   '(' Quantifier Identifier ('in' Identifier)? Attribute attr ')'
+    | orExpGen:    OrExp
 ;
 
-//OR
+// OR
 syntax OrExp
-    = OrExp 'or' AndExp | AndExp
+    = left OrExp 'or' AndExp
+    | AndExp
 ;
 
-//AND
+// AND
 syntax AndExp
-    =  AndExp 'and' NegExp
+    = left AndExp 'and' NegExp
     | NegExp
 ;
 
-//NOT
+// NEG
 syntax NegExp
-    = NegExp: 'neg' NegExp
+    = negOp: 'neg' NegExp
     | RelExp
 ;
 
 // RELACIONES
 syntax RelExp
-    = Primary LogicOperator Primary 
+    = relBinary: Primary LogicOperator Primary 
     | Primary
 ;
 
 // CHARLITERAL
-lexical CharLiteral = (Letter|IntLiteral|"-")+
+lexical CharLiteral = (Letter | IntLiteral | "-")+
 ;
 
-//Letter
+// Letter
 lexical Letter = [a-zA-Z]
 ;
-//IDENTIFIER
-lexical Identifier = Letter CharLiteral?\ Reserved
+
+// IDENTIFIER
+lexical Identifier = Letter CharLiteral? \ Reserved
 ;
 
-//INTLITERAL
+// INTLITERAL
 lexical IntLiteral = [0-9]+
 ;
-lexical LineSpace = ('\n'|'\r\n')+
+
+lexical LineSpace = ('\n' | '\r\n')+
 ;
 
 keyword Reserved 
     = "defmodule" | "using" | "defspace" | "defrule" | "end"
     | "defoperator" | "defexpression" | "forall" | "exists"
-    | "defvar" | "and" | "or" | "neg" | "in" |'=\>' | '≡' | '\>' 
-    | '\<' | '\<=' | '\>=' | '\<\>' | '\n' |'\r\n'
+    | "defvar" | "defer"                     // CORRECCIÓN 4: "defer" como reservado
+    | "and" | "or" | "neg" | "in"
+    | '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
 ;
