@@ -10,7 +10,14 @@ import Relation;
 import Syntax;
 
 PathConfig pcfg = getProjectPathConfig(|project://verilang|);
-Language tdslLang = language(pcfg, "TDSL", "tdsl", "Plugin", "contribs");
+
+Language tdslLang = language(
+    pcfg,
+    "TDSL",
+    "tdsl",
+    "Plugin",
+    "contribs"
+);
 
 set[LanguageService] contribs() = {
     parser(start[Module] (str program, loc src) {
@@ -19,7 +26,7 @@ set[LanguageService] contribs() = {
     })
 };
 
-void main() {
+public void registerPlugin() {
     registerLanguage(tdslLang);
     println("Plugin loaded!");
 }

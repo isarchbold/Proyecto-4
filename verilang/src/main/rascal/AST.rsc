@@ -1,35 +1,53 @@
 module AST
 
-
 //Inicio module
 data Module 
     = modulo(str name, list[str] imports, list[Element] elements);
 
 //Element
-data Element 
-    = space(Space space)
-    | rule(Rule rule)
-    | variable(Variable variable)
-    | expression(Expression expression)
-    | operator(Operator operator);
+data Element
+    = spaceElement(Space space)
+    | ruleElement(Rule rule)
+    | variableElement(Variable variable)
+    | expressionElement(Expression expression)
+    | operatorElement(Operator operator)
+    | relationElement(Relation relation)
+    | equationElement(Equation equation)
+;
 
 //Space
 data Space
     = spaceDef(str name)
     | spaceDefWithParent(str name, str parent);
 
+//Type
+data Type
+    = intType()
+    | boolType()
+    | stringType()
+    | charType()
+    | customType(str name);
+
 //Operator
 data Operator
-    = operatorDef(str name, list[str] parameters, str returnType);
+    = operatorDef(str name, list[Type] parameters, Type returnType);
+
+//Relation
+data Relation
+    = relationDef(str name, list[Type] parameters, Type returnType);
+
+//Equation
+data Equation
+    = equationDef(GeneralExp left, GeneralExp right);
 
 //Variable
 data Variable
     = varDef(list[VarDecl] vars);
 
 //Lista 
-data VarDecl // aca cambie el nombre de lista porque el parser se estaba confundiendo con la palabra reservada list
+data VarDecl
     = lista(str name)
-    | listaTyped(str name, str varType); // aca cambie el nombre de varType porque el parser se estaba confundiendo con la palabra reservada type
+    | listaTyped(str name, Type varType);
 
 //Rule
 data Rule 
@@ -45,11 +63,11 @@ data Attribute
 
 //Top
 data GeneralExp
-  = quantExp(Quantifier q, str id, GeneralExp body)
-  | quantExpIn(Quantifier q, str id, str domain, GeneralExp body)
-  | quantExpAttr(Quantifier q, str id, Attribute attr)
-  | quantExpInAttr(Quantifier q, str id, str domain, Attribute attr)
-  | orExp(OrExp exp);
+    = quantExp(Quantifier q, str id, GeneralExp body)
+    | quantExpIn(Quantifier q, str id, str domain, GeneralExp body)
+    | quantExpAttr(Quantifier q, str id, Attribute attr)
+    | quantExpInAttr(Quantifier q, str id, str domain, Attribute attr)
+    | orExp(OrExp exp);
 
 //Quantifier
 data Quantifier
@@ -68,8 +86,8 @@ data AndExp
 
 //Neg
 data NegExp
-    = neg(NegExp exp)
-    | relExp(RelExp exp);
+    = neg(NegExp negExpression)
+    | relExp(RelExp relationalExpression);
 
 //relaciones
 data RelExp
@@ -83,12 +101,17 @@ data LogicOperator
 //Primary
 data Primary   
     = id(str name)
-    | intLiteral(int number)
-    | parenthesis(OrExp exp);
+    | intLit(str number)
+    | charValue(str v)
+    | stringValue(str v)
+    | booleanValue(str v)
+    | parenthesis(OrExp exp)
+;
 
 //expression
 data Expression
-    = expressionDef(GeneralExp exp);
+    = expressionDef(GeneralExp exp)
+    ;
 
 
 

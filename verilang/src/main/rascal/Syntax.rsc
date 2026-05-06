@@ -14,10 +14,13 @@ start syntax Module
 //ELEMENT
 syntax Element
     = ( Space
-    |  Rule
+    | Rule
     | Variable
     | Expression
-    | Operator) LineSpace
+    | Operator
+    | Relation
+    | Equation
+    ) LineSpace?
 ;
 
 // SPACE
@@ -31,21 +34,33 @@ syntax Space
 //OPERATOR
 syntax Operator
     = operatorDef:
-    'defoperator' Identifier name ':' (Identifier '-\>')+ Identifier returnType
-     LineSpace? 'end'
+    'defoperator' Identifier name ':' (Type '-\>')+ Type returnType
+    LineSpace? 'end'
+;
+//RELATION
+syntax Relation
+    = relationDef:
+    'defrelation' Identifier name ':' (Type '-\>')+ Type returnType
+    LineSpace? 'end'
+;
+//EQUATION
+syntax Equation
+    = equationDef:
+    'defequation' GeneralExp left '=' GeneralExp right Attribute? attr
+    LineSpace? 'end'
 ;
 
 //VARIABLE
 syntax Variable
     = varDef:
     'defvar' List (','List)* vars
-     LineSpace? 'end'
+    LineSpace? 'end'
 ;
 
 //LIST 
 syntax List
     = lista:
-    Identifier (':' Identifier)?
+    Identifier (':' Type)?
 ;
 
 //RULE 
@@ -55,16 +70,16 @@ syntax Rule
     LineSpace? 'end'
 ;
 
-//APPLICATION 
+// APPLICATION
 syntax Application
     = application:
-    Identifier '(' Identifier+ ')'
+    Identifier '(' Identifier (',' Identifier)* ')'
 ;
 
 // ATTRIBUTE
 syntax Attribute
     = attribute:
-    '[' List+ ']'
+    '[' List (',' List)* ']'
 ;
 
 //QUANTIFIER 
@@ -75,20 +90,23 @@ syntax Quantifier
 //LOGIC OPERATOR
 syntax LogicOperator
     = op:
-     '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
+    '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
 ;
 
 // PRIMARY
 syntax Primary
     = Identifier
     | IntLiteral
+    | CharLiteral
+    | StringLiteral
+    | BoolLiteral
     | '(' OrExp ')'
 ;
 
 //EXPRESSION 
 syntax Expression
     = expressionDef :
-    'defexpression' GeneralExp LineSpace? 'end'
+    'defexpression' GeneralExp Attribute? attr LineSpace? 'end'
 ;
 
 // TOP
@@ -120,26 +138,56 @@ syntax RelExp
     | Primary
 ;
 
-// CHARLITERAL
-lexical CharLiteral = (Letter|IntLiteral|"-")+
+// TYPE
+syntax Type
+    = intType: 'int'
+    | boolType: 'bool'
+    | stringType: 'string'
+    | charType: 'char'
 ;
+
+
+// CHAR LITERAL
+lexical CharLiteral
+    = "\'" ![\'] "\'"
+;
+
+// STRING LITERAL
+lexical StringLiteral
+    = "\"" ![\"]* "\""
+;
+
+// BOOL LITERAL
+lexical BoolLiteral
+    = 'true'
+    | 'false'
+;
+
+// IDENTIFIER TAIL
+lexical IdTail = (Letter | IntLiteral | "-")+;
+
 
 //Letter
 lexical Letter = [a-zA-Z]
 ;
 //IDENTIFIER
-lexical Identifier = Letter CharLiteral?\ Reserved
+lexical Identifier = Letter IdTail? \ Reserved
 ;
 
 //INTLITERAL
 lexical IntLiteral = [0-9]+
 ;
+
 lexical LineSpace = ('\n'|'\r\n')+
 ;
 
 keyword Reserved 
     = "defmodule" | "using" | "defspace" | "defrule" | "end"
-    | "defoperator" | "defexpression" | "forall" | "exists"
-    | "defvar" | "and" | "or" | "neg" | "in" |'=\>' | '≡' | '\>' 
-    | '\<' | '\<=' | '\>=' | '\<\>' | '\n' |'\r\n'
+    | "defoperator" | "defrelation" | "defequation"
+    | "defexpression" | "forall" | "exists"
+    | "defvar" | "and" | "or" | "neg" | "in"
+    | "int" | "bool" | "string" | "char"
+    | "true" | "false"
+    | '=\>' | '≡' | '\>' 
+    | '\<' | '\<=' | '\>=' | '\<\>'
 ;
