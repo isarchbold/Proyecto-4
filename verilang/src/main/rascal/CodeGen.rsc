@@ -1,145 +1,109 @@
-module CodeGen
 
-// Tarea 2: parsea un .vl, construye el AST e imprime en consola
-
-import IO;
-import ParseTree;
-import Parse;
-import AST;
-import Syntax;
-import String;
-
-// ─── PUNTO DE ENTRADA ────────────────────────────────────────────────────────
-// Uso desde la consola de Rascal:
-//   import Compile;
-//   run(|project://verilang/instance/ejemplo.vl|);
 
 void run(loc file) {
     println("=== VeriLang Compiler ===");
     println("Archivo: <file>\n");
 
-    // 1. Parseo
+    // 1. Parseo — trabajamos directo con el parse tree, sin implode
     start[Module] tree = parseFile(file);
 
-    // 2. Construcción del AST mediante implode
-    Module m = implode(#Module, tree);
-
-    // 3. Mostrar resultado en consola
-    printModule(m);
+    // 2. Mostrar resultado en consola
+    printParseModule(tree.top);
 }
 
-// ─── IMPRESIÓN DEL MÓDULO ────────────────────────────────────────────────────
-void printModule(Module m) {
-    println("Módulo: <m.name>");
+// Trabaja sobre el parse tree directamente con concrete syntax patterns
+void printParseModule((Module)`defmodule <Identifier name> <Element* elems> end`) {
+    println("Módulo: <name>");
     println("\nElementos:");
-    for (Element e <- m.elements) printElement(e);
+    for (e <- elems) printParseElement(e);
 }
 
-// ─── IMPRESIÓN DE ELEMENTOS ──────────────────────────────────────────────────
-void printElement(spaceElem(Space s))           { printSpace(s); }
-void printElement(variableElem(Variable v))     { printVariable(v); }
-void printElement(operatorElem(Operator op))     { printOperator(op); }
-void printElement(ruleElem(Rule r))             { printRule(r); }
-void printElement(expressionElem(Expression e)) { printExpression(e); }
-void printElement(deferElem(Defer d))           { println("  defer <d.name>"); }
+void printParseElement((Element)`<Variable v>`)    = printParseVariable(v);
+void printParseElement((Element)`<Operator op>`)   = printParseOperator(op);
+void printParseElement((Element)`<Expression e>`)  = printParseExpression(e);
+void printParseElement((Element)`<Space s>`)       = printParseSpace(s);
+void printParseElement((Element)`<Rule r>`)        = printParseRule(r);
+void printParseElement((Element)`<Defer d>`)       = printParseDefer(d);
 
-// ─── SPACE ───────────────────────────────────────────────────────────────────
-void printSpace(spaceDef(str name)) {
+void printParseSpace((Space)`defspace <Identifier name> end`) {
     println("  defspace <name>");
 }
-void printSpace(spaceDefWithParent(str name, str parent)) {
+void printParseSpace((Space)`defspace <Identifier name> < <Identifier parent> end`) {
     println("  defspace <name> \< <parent>");
 }
 
-// ─── VARIABLE ────────────────────────────────────────────────────────────────
-void printVariable(varDef(list[VarDecl] vars)) {
+void printParseVariable((Variable)`defvar <{VarDecl ","}+ vars> end`) {
     println("  defvar:");
-    for (VarDecl v <- vars) printVarDecl(v);
+    for (v <- vars) {
+        switch(v) {
+            case (VarDecl)`<Identifier n> : <Identifier t>`: println("    <n> : <t>");
+            case (VarDecl)`<Identifier n>`: println("    <n>");
+        }
+    }
 }
 
-void printVarDecl(varDeclSimple(str name)) {
-    println("    <name>");
-}
-void printVarDecl(varDeclTyped(str name, str varType)) {
-    println("    <name> : <varType>");
-}
-
-// ─── OPERATOR ────────────────────────────────────────────────────────────────
-void printOperator(operatorDef(str name, list[str] parameters)) {
-    str paramStr = intercalate(" -\> ", parameters);
-    println("  defoperator <name> : <paramStr>");
+void printParseOperator((Operator)`defoperator <Identifier name> : <{Identifier "->"}+ params> end`) {
+    str ps = "";
+    for (p <- params) ps += "<p> -\> ";
+    println("  defoperator <name> : <ps[..-4]>");
 }
 
-// ─── RULE ────────────────────────────────────────────────────────────────────
-void printRule(ruleDef(Application lhs, Application rhs)) {
-    println("  defrule (<printApp(lhs)>) -\> (<printApp(rhs)>)");
+void printParseRule((Rule)`defrule ( <Application l> ) -> ( <Application r> ) end`) {
+    println("  defrule (<appToStr(l)>) -\> (<appToStr(r)>)");
 }
 
-str printApp(application(str name, list[AppArg] args)) {
-    str argStr = intercalate(", ", [printArg(a) | a <- args]);
-    return "<name>(<argStr>)";
+void printParseDefer((Defer)`defer <Identifier name> end`) {
+    println("  defer <name>");
 }
 
-str printArg(argId(str name))       = name;
-str printArg(argApp(Application a)) = printApp(a);
-
-// ─── EXPRESSION ──────────────────────────────────────────────────────────────
-void printExpression(expressionDef(GeneralExp ge)) {
-    println("  defexpression <printGenExp(ge)>");
+void printParseExpression((Expression)`defexpression <GeneralExp g> end`) {
+    println("  defexpression <genExpToStr(g)>");
 }
 
-// ─── GENERALEXP ──────────────────────────────────────────────────────────────
-str printGenExp(genOrExp(OrExp e)) = printOrExp(e);
+str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`) =
+    "(<qToStr(q)> <id> in <domain> . <genExpToStr(body)>)";
+str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> . <GeneralExp body> )`) =
+    "(<qToStr(q)> <id> . <genExpToStr(body)>)";
+str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> in <Identifier domain> <Attribute attr> )`) =
+    "(<qToStr(q)> <id> in <domain> <attrToStr(attr)>)";
+str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> <Attribute attr> )`) =
+    "(<qToStr(q)> <id> <attrToStr(attr)>)";
+str genExpToStr((GeneralExp)`<OrExp o>`) = orToStr(o);
 
-str printGenExp(quantDot(Quantifier q, str id, GeneralExp body)) =
-    "(<printQ(q)> <id> . <printGenExp(body)>)";
+str qToStr((Quantifier)`forall`) = "forall";
+str qToStr((Quantifier)`exists`) = "exists";
 
-str printGenExp(quantDotIn(Quantifier q, str id, str dom, GeneralExp body)) =
-    "(<printQ(q)> <id> in <dom> . <printGenExp(body)>)";
+str attrToStr(Attribute attr) {
+    list[str] strs = [trim(unparse(vd)) | /VarDecl vd := attr];
+    str content = intercalate(", ", strs);
+    str result = "[" + content + "]";
+    return result;
+}
 
-str printGenExp(quantAttr(Quantifier q, str id, Attribute attr)) =
-    "(<printQ(q)> <id> <printAttr(attr)>)";
+str orToStr((OrExp)`<OrExp l> or <AndExp r>`)  = "<orToStr(l)> or <andToStr(r)>";
+str orToStr((OrExp)`<AndExp a>`)               = andToStr(a);
 
-str printGenExp(quantAttrIn(Quantifier q, str id, str dom, Attribute attr)) =
-    "(<printQ(q)> <id> in <dom> <printAttr(attr)>)";
+str andToStr((AndExp)`<AndExp l> and <NegExp r>`) = "<andToStr(l)> and <negToStr(r)>";
+str andToStr((AndExp)`<NegExp n>`)               = negToStr(n);
 
-str printQ(forall()) = "forall";
-str printQ(exists()) = "exists";
+str negToStr((NegExp)`neg <NegExp n>`) = "neg <negToStr(n)>";
+str negToStr((NegExp)`<RelExp r>`)     = relToStr(r);
 
-// ─── ATTRIBUTE ───────────────────────────────────────────────────────────────
-str printAttr(attribute(list[VarDecl] vars)) =
-    "[<intercalate(", ", [printVarDeclStr(v) | v <- vars])>]";
+str relToStr((RelExp)`<Primary l> <LogicOperator op> <Primary r>`) =
+    "<primToStr(l)> <"<op>"> <primToStr(r)>";
+str relToStr((RelExp)`<Primary p>`) = primToStr(p);
 
-str printVarDeclStr(varDeclSimple(str name))          = name;
-str printVarDeclStr(varDeclTyped(str name, str varType)) = "<name>:<varType>";
+str primToStr((Primary)`<Identifier name>`) = "<name>";
+str primToStr((Primary)`<IntLiteral n>`)    = "<n>";
+str primToStr((Primary)`( <OrExp o> )`)     = "(<orToStr(o)>)";
 
-// ─── OR ──────────────────────────────────────────────────────────────────────
-str printOrExp(orOp(OrExp l, AndExp r))  = "<printOrExp(l)> or <printAndExp(r)>";
-str printOrExp(orAndExp(AndExp e))       = printAndExp(e);
-
-// ─── AND ─────────────────────────────────────────────────────────────────────
-str printAndExp(andOp(AndExp l, NegExp r)) = "<printAndExp(l)> and <printNegExp(r)>";
-str printAndExp(andNegExp(NegExp e))       = printNegExp(e);
-
-// ─── NEG ─────────────────────────────────────────────────────────────────────
-str printNegExp(negOp(NegExp inner))  = "neg <printNegExp(inner)>";
-str printNegExp(relExpWrap(RelExp e)) = printRelExp(e);
-
-// ─── REL ─────────────────────────────────────────────────────────────────────
-str printRelExp(relBinary(Primary l, LogicOperator op, Primary r)) =
-    "<printPrimary(l)> <printLogicOp(op)> <printPrimary(r)>";
-str printRelExp(relPrimary(Primary p)) = printPrimary(p);
-
-// ─── LOGIC OPERATOR ──────────────────────────────────────────────────────────
-str printLogicOp(eqOp())    = "=\>";
-str printLogicOp(equivOp()) = "≡";
-str printLogicOp(gtOp())    = "\>";
-str printLogicOp(ltOp())    = "<";
-str printLogicOp(leOp())    = "<=";
-str printLogicOp(geOp())    = ">=";
-str printLogicOp(neOp())    = "\<\>";
-
-// ─── PRIMARY ─────────────────────────────────────────────────────────────────
-str printPrimary(primaryId(str n))      = n;
-str printPrimary(primaryInt(int n))     = "<n>";
-str printPrimary(primaryParen(OrExp e)) = "(<printOrExp(e)>)";
+str appToStr((Application)`<Identifier name> ( <{AppArg ","}+ args> )`) {
+    str r = "";
+    for (a <- args) {
+        switch(a) {
+            case (AppArg)`<Application app>`: r += appToStr(app) + ", ";
+            case (AppArg)`<Identifier id>`:  r += "<id>, ";
+        }
+    }
+    return "<name>(<r[..-2]>)";
+}
