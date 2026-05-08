@@ -29,22 +29,14 @@ data AType
     | unknownType();
 
 // ─────────────────────────────────────────────
-// TYPEPAL ENTRY
+// TYPE HELPERS
 // ─────────────────────────────────────────────
 
-public TModel checkVeriLang(Tree pt) {
-    if (pt has top) {
-        pt = pt.top;
-    }
-
-    TypePalConfig cfg = getModulesConfig();
-
-    Collector c = newCollector("VeriLang", pt, cfg);
-
-    collect(pt, c);
-
-    return newSolver(pt, c.run()).run();
-}
+AType typeFromString("int") = intType();
+AType typeFromString("bool") = boolType();
+AType typeFromString("char") = charType();
+AType typeFromString("string") = stringType();
+AType typeFromString(str _) = unknownType();
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -59,146 +51,122 @@ private TypePalConfig getModulesConfig() = tconfig(
 );
 
 // ─────────────────────────────────────────────
-// VARIABLES
+// TYPEPAL CHECKER
 // ─────────────────────────────────────────────
 
-void collect(
-    current: (VarDecl) `<Identifier name> : <Identifier typ>`,
-    Collector c
-) {
-    tp = typeFromString("<typ>");
+public TModel checkVeriLang(Tree pt) {
 
-    dt = defType(tp);
+    if (pt has top) {
+        pt = pt.top;
+    }
 
-    c.define("<name>", variableId(), name, dt);
+    TypePalConfig cfg = getModulesConfig();
+
+    Collector c = newCollector("VeriLang", pt, cfg);
+
+    visit(pt) {
+
+        // ─────────────────────────────
+        // VARIABLE DECLARATIONS
+        // ─────────────────────────────
+
+        case (VarDecl) `<Identifier name> : <Identifier typ>`: {
+
+            tp = typeFromString("<typ>");
+
+            dt = defType(tp);
+
+            println("DEFINE VARIABLE: <name>");
+
+            c.define(name, variableId(), name, dt);
+        }
+
+        case (VarDecl) `<Identifier name>`: {
+
+            dt = defType(unknownType());
+
+            println("DEFINE VARIABLE: <name>");
+
+            c.define(name, variableId(), name, dt);
+        }
+
+        // ─────────────────────────────
+        // VARIABLE USES
+        // ─────────────────────────────
+
+        case (Primary) `<Identifier name>`: {
+
+            println("USE VARIABLE: <name>");
+
+            c.use(name, {variableId()});
+        }
+
+        // ─────────────────────────────
+        // SPACE DEFINITIONS
+        // ─────────────────────────────
+
+        case (Space)
+            `defspace <Identifier name> end`: {
+
+            dt = defType(unknownType());
+
+            c.define(name, spaceId(), name, dt);
+        }
+
+        case (Space)
+            `defspace <Identifier name> \< <Identifier parent> end`: {
+
+            dt = defType(unknownType());
+
+            c.define(name, spaceId(), name, dt);
+
+            c.use(parent, {spaceId()});
+        }
+
+        // ─────────────────────────────
+        // OPERATOR DEFINITIONS
+        // ─────────────────────────────
+
+        case (Operator)
+            `defoperator <Identifier name> : <Identifier t1> -\> <Identifier t2> end`: {
+
+            dt = defType(unknownType());
+
+            c.define(name, operatorId(), name, dt);
+        }
+
+        // ─────────────────────────────
+        // QUANTIFIER DOMAINS
+        // ─────────────────────────────
+
+        case (GeneralExp)
+            `( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`: {
+
+            c.use(domain, {spaceId(), variableId()});
+        }
+    }
+
+    return newSolver(pt, c.run()).run();
 }
-
-void collect(
-    current: (VarDecl) `<Identifier name>`,
-    Collector c
-) {
-    dt = defType(unknownType());
-
-    c.define("<name>", variableId(), name, dt);
-}
-
-// ─────────────────────────────────────────────
-// SPACES
-// ─────────────────────────────────────────────
-
-void collect(
-    current: (Space) `defspace <Identifier name> end`,
-    Collector c
-) {
-    dt = defType(unknownType());
-
-    c.define("<name>", spaceId(), name, dt);
-}
-
-void collect(
-    current: (Space)
-    `defspace <Identifier name> \< <Identifier parent> end`,
-    Collector c
-) {
-    dt = defType(unknownType());
-
-    c.define("<name>", spaceId(), name, dt);
-
-    c.use(parent, {spaceId()});
-}
-
-// ─────────────────────────────────────────────
-// OPERATORS
-// ─────────────────────────────────────────────
-
-void collect(
-    current: (Operator)
-    `defoperator <Identifier name> : <Identifier t1> -\> <Identifier t2> end`,
-    Collector c
-) {
-    dt = defType(unknownType());
-
-    c.define("<name>", operatorId(), name, dt);
-}
-
-// ─────────────────────────────────────────────
-// IDENTIFIER USES
-// ─────────────────────────────────────────────
-
-void collect(
-    current: (Primary) `<Identifier name>`,
-    Collector c
-) {
-    c.use(name, {variableId()});
-}
-
-// ─────────────────────────────────────────────
-// QUANTIFIER DOMAINS
-// ─────────────────────────────────────────────
-
-void collect(
-    current:
-    (GeneralExp)
-    `( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`,
-    Collector c
-) {
-    c.use(domain, {spaceId(), variableId()});
-}
-
-// ─────────────────────────────────────────────
-// TYPE HELPERS
-// ─────────────────────────────────────────────
-
-AType typeFromString("int") = intType();
-AType typeFromString("bool") = boolType();
-AType typeFromString("char") = charType();
-AType typeFromString("string") = stringType();
-AType typeFromString(str _) = unknownType();
 
 // ─────────────────────────────────────────────
 // FILE CHECK
 // ─────────────────────────────────────────────
 
 void checkFile(loc file) {
+
     pt = parseFile(file);
 
     tm = checkVeriLang(pt);
 
     if (tm.messages == []) {
+
         println("✓ No semantic/type errors found.");
     }
     else {
+
         for (msg <- tm.messages) {
             println(msg);
         }
     }
-}
-
-void collect(
-    current:
-    (Module)
-    `defmodule <Identifier name> <Element elems> end`,
-    Collector c
-) { }
-
-void collect(
-    current:
-    (Expression)
-    `defexpression <GeneralExp g> end`,
-    Collector c
-) { }
-
-void collect(
-    current:
-    (RelExp)
-    `<Primary left> <LogicOperator op> <Primary right>`,
-    Collector c
-) { }
-
-void collect(
-    current: (Primary) `<Identifier name>`,
-    Collector c
-) {
-    println("FOUND IDENTIFIER: <name>");
-    c.use(name, {variableId()});
 }
