@@ -17,7 +17,6 @@ set[LanguageService] contribs() = {
     parser(start[Module] (str program, loc src) {
         return parseStr(program);
     }),
-    // Checker integrado al IDE:
     checker(Summary (str program, loc src) {
         pt = parseStr(program);
         m = loadModule(pt);

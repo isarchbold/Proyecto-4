@@ -191,7 +191,7 @@ void checkFile(loc file) {
 
     if (tm.messages == []) {
 
-        println("✓ No semantic/type errors found");
+        println("Semantic analysis completed");
     }
     else {
 

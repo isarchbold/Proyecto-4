@@ -76,7 +76,7 @@ syntax GeneralExp
     | quantDot:    '(' Quantifier q Identifier id '.' GeneralExp body ')'
     | quantAttrIn: '(' Quantifier q Identifier id 'in' Identifier domain Attribute attr ')'
     | quantAttr:   '(' Quantifier q Identifier id Attribute attr ')'
-    | genOrExp:    OrExp orExp   // ← debe ser "genOrExp", igual que en AST
+    | genOrExp:    OrExp orExp
 ;
 
 syntax Quantifier
