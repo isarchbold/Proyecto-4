@@ -51,6 +51,30 @@ private TypePalConfig getModulesConfig() = tconfig(
 );
 
 // ─────────────────────────────────────────────
+// SIMPLE MANUAL TYPE CHECKING
+// ─────────────────────────────────────────────
+
+void manualTypeCheck(Tree pt) {
+
+    txt = unparse(pt);
+
+    // string compared with integer
+    if (/\".*\"[\ ]*\>[\ ]*[0-9]+/ := txt) {
+        println("TYPE ERROR cannot compare string with integer using comparadores");
+    }
+
+    // boolean compared with integer
+    if (/(true|false)[\ ]*\>[\ ]*[0-9]+/ := txt) {
+        println("TYPE ERROR: cannot compare boolean with integer using comparadores");
+    }
+
+    // string AND boolean
+    if (/\".*\"[\ ]*and[\ ]*(true|false)/ := txt) {
+        println("TYPE ERROR: operator and requires booleans");
+    }
+}
+
+// ─────────────────────────────────────────────
 // TYPEPAL CHECKER
 // ─────────────────────────────────────────────
 
@@ -59,6 +83,9 @@ public TModel checkVeriLang(Tree pt) {
     if (pt has top) {
         pt = pt.top;
     }
+
+    // manual type checks
+    manualTypeCheck(pt);
 
     TypePalConfig cfg = getModulesConfig();
 
@@ -164,7 +191,7 @@ void checkFile(loc file) {
 
     if (tm.messages == []) {
 
-        println("✓ No semantic/type errors found.");
+        println("✓ No semantic/type errors found");
     }
     else {
 

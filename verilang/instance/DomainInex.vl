@@ -1,0 +1,6 @@
+defmodule Domain
+
+defexpression (forall x in dominio . x)
+end
+
+end

@@ -1,0 +1,9 @@
+defmodule Good
+
+defvar x:int, y:int
+end
+
+defexpression (x > y)
+end
+
+end
