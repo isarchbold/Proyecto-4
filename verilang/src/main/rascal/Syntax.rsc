@@ -115,14 +115,22 @@ syntax LogicOperator
 ;
 
 syntax Primary
-    = primaryId:    Identifier name
-    | primaryInt:   IntLiteral number
-    | primaryParen: '(' OrExp orExp ')'
+    = primaryId:     Identifier name
+    | primaryInt:    IntLiteral number
+    | primaryBool:   BoolLiteral bval
+    | primaryChar:   CharLiteral cval
+    | primaryString: StringLiteral sval
+    | primaryParen:  '(' OrExp orExp ')'
 ;
+
 
 lexical Identifier = Letter (Letter | [0-9] | "-")* \ Reserved;
 lexical Letter     = [a-zA-Z];
 lexical IntLiteral = [0-9]+;
+
+lexical BoolLiteral  = "true" | "false";
+lexical CharLiteral  = "\'" ![\'] "\'";
+lexical StringLiteral = "\"" ![\"]* "\"";
 
 keyword Reserved
     = "defmodule" | "using" | "defspace" | "defrule" | "end"

@@ -1,205 +1,204 @@
 module Checker
 
-import AST;
-import Implode;
+import Syntax;
 import Parse;
+import ParseTree;
+import String;
 import IO;
 
-import analysis::typepal::TypePal;
-import analysis::typepal::Collector;
+extend analysis::typepal::TypePal;
 
-// ─── TIPOS BASE DE VERILANG ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// ROLES
+// ─────────────────────────────────────────────
+
+data IdRole
+    = variableId()
+    | operatorId()
+    | spaceId();
+
+// ─────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────
 
 data AType
     = intType()
     | boolType()
     | charType()
     | stringType()
-    | customType(str name)
     | unknownType();
 
-str prettyAType(intType())         = "int";
-str prettyAType(boolType())        = "bool";
-str prettyAType(charType())        = "char";
-str prettyAType(stringType())      = "string";
-str prettyAType(customType(str n)) = n;
-str prettyAType(unknownType())     = "unknown";
+// ─────────────────────────────────────────────
+// TYPEPAL ENTRY
+// ─────────────────────────────────────────────
 
-// ─── ROLES ───────────────────────────────────────────────────────────────────
-
-data IdRole
-    = moduleId()
-    | variableId()
-    | operatorId()
-    | spaceId();
-
-// ─── COLLECTOR ───────────────────────────────────────────────────────────────
-
-void collect(modulo(str name, list[Element] elements), Collector c) {
-    collectElements(elements, c);
-}
-
-void collectElements(list[Element] elements, Collector c) {
-    for (elem <- elements) {
-        collectElement(elem, c);
+public TModel checkVeriLang(Tree pt) {
+    if (pt has top) {
+        pt = pt.top;
     }
+
+    TypePalConfig cfg = getModulesConfig();
+
+    Collector c = newCollector("VeriLang", pt, cfg);
+
+    collect(pt, c);
+
+    return newSolver(pt, c.run()).run();
 }
 
-void collectElement(variableElem(Variable v), Collector c)     = collectVariable(v, c);
-void collectElement(expressionElem(Expression e), Collector c) = collectExpression(e, c);
-void collectElement(operatorElem(Operator op), Collector c)    = collectOperator(op, c);
-void collectElement(spaceElem(Space s), Collector c)           = collectSpace(s, c);
-void collectElement(ruleElem(Rule r), Collector c)             = collectRule(r, c);
-void collectElement(deferElem(Defer d), Collector c)           = collectDefer(d, c);
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
 
-// ─── VARIABLES ───────────────────────────────────────────────────────────────
+private TypePalConfig getModulesConfig() = tconfig(
+    verbose = true,
+    logTModel = true,
+    logAttempts = true,
+    logSolverIterations = true,
+    logSolverSteps = true
+);
 
-void collectVariable(varDef(list[VarDecl] vars), Collector c) {
-    for (v <- vars) {
-        collectVarDecl(v, c);
-    }
+// ─────────────────────────────────────────────
+// VARIABLES
+// ─────────────────────────────────────────────
+
+void collect(
+    current: (VarDecl) `<Identifier name> : <Identifier typ>`,
+    Collector c
+) {
+    tp = typeFromString("<typ>");
+
+    dt = defType(tp);
+
+    c.define("<name>", variableId(), name, dt);
 }
 
-void collectVarDecl(varDeclTyped(str name, str varType), Collector c) {
-    AType t = strToAType(varType);
-    c.define(name, variableId(), varDeclTyped(name, varType), defType(t));
+void collect(
+    current: (VarDecl) `<Identifier name>`,
+    Collector c
+) {
+    dt = defType(unknownType());
+
+    c.define("<name>", variableId(), name, dt);
 }
 
-void collectVarDecl(varDeclSimple(str name), Collector c) {
-    c.define(name, variableId(), varDeclSimple(name), defType(unknownType()));
+// ─────────────────────────────────────────────
+// SPACES
+// ─────────────────────────────────────────────
+
+void collect(
+    current: (Space) `defspace <Identifier name> end`,
+    Collector c
+) {
+    dt = defType(unknownType());
+
+    c.define("<name>", spaceId(), name, dt);
 }
 
-// Convierte el string del tipo en AType
-AType strToAType("int")    = intType();
-AType strToAType("bool")   = boolType();
-AType strToAType("char")   = charType();
-AType strToAType("string") = stringType();
-AType strToAType(str name) = customType(name);
+void collect(
+    current: (Space)
+    `defspace <Identifier name> \< <Identifier parent> end`,
+    Collector c
+) {
+    dt = defType(unknownType());
 
-// ─── OPERADORES ──────────────────────────────────────────────────────────────
+    c.define("<name>", spaceId(), name, dt);
 
-void collectOperator(operatorDef(str name, list[str] parameters), Collector c) {
-    c.define(name, operatorId(), operatorDef(name, parameters), defType(unknownType()));
+    c.use(parent, {spaceId()});
 }
 
-// ─── SPACES ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// OPERATORS
+// ─────────────────────────────────────────────
 
-void collectSpace(spaceDef(str name), Collector c) {
-    c.define(name, spaceId(), spaceDef(name), defType(unknownType()));
+void collect(
+    current: (Operator)
+    `defoperator <Identifier name> : <Identifier t1> -\> <Identifier t2> end`,
+    Collector c
+) {
+    dt = defType(unknownType());
+
+    c.define("<name>", operatorId(), name, dt);
 }
 
-void collectSpace(spaceDefWithParent(str name, str parent), Collector c) {
-    c.define(name, spaceId(), spaceDefWithParent(name, parent), defType(unknownType()));
-    c.use(parent, spaceDefWithParent(name, parent), {spaceId()});
+// ─────────────────────────────────────────────
+// IDENTIFIER USES
+// ─────────────────────────────────────────────
+
+void collect(
+    current: (Primary) `<Identifier name>`,
+    Collector c
+) {
+    c.use(name, {variableId()});
 }
 
-// ─── RULES ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// QUANTIFIER DOMAINS
+// ─────────────────────────────────────────────
 
-void collectRule(ruleDef(Application left, Application right), Collector c) {
-    collectApplication(left, c);
-    collectApplication(right, c);
+void collect(
+    current:
+    (GeneralExp)
+    `( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`,
+    Collector c
+) {
+    c.use(domain, {spaceId(), variableId()});
 }
 
-void collectApplication(application(str name, list[AppArg] arguments), Collector c) {
-    c.use(name, application(name, arguments), {operatorId(), variableId()});
-    for (arg <- arguments) {
-        collectAppArg(arg, c);
-    }
-}
+// ─────────────────────────────────────────────
+// TYPE HELPERS
+// ─────────────────────────────────────────────
 
-void collectAppArg(argId(str name), Collector c) {
-    // identificador sin contexto adicional, se valida por su presencia
-}
+AType typeFromString("int") = intType();
+AType typeFromString("bool") = boolType();
+AType typeFromString("char") = charType();
+AType typeFromString("string") = stringType();
+AType typeFromString(str _) = unknownType();
 
-void collectAppArg(argApp(Application app), Collector c) = collectApplication(app, c);
-
-// ─── DEFER ───────────────────────────────────────────────────────────────────
-
-void collectDefer(deferDef(str name), Collector c) {
-    c.use(name, deferDef(name), {operatorId(), spaceId(), variableId()});
-}
-
-// ─── EXPRESSIONS ─────────────────────────────────────────────────────────────
-
-void collectExpression(expressionDef(GeneralExp genExp), Collector c) {
-    collectGeneralExp(genExp, c);
-}
-
-void collectGeneralExp(quantDotIn(Quantifier q, str id, str domain, GeneralExp body), Collector c) {
-    c.use(domain, quantDotIn(q, id, domain, body), {spaceId(), variableId()});
-    collectGeneralExp(body, c);
-}
-
-void collectGeneralExp(quantDot(Quantifier q, str id, GeneralExp body), Collector c) {
-    collectGeneralExp(body, c);
-}
-
-void collectGeneralExp(quantAttrIn(Quantifier q, str id, str domain, Attribute attr), Collector c) {
-    c.use(domain, quantAttrIn(q, id, domain, attr), {spaceId(), variableId()});
-}
-
-void collectGeneralExp(quantAttr(Quantifier q, str id, Attribute attr), Collector c) {
-    // sin usos adicionales
-}
-
-void collectGeneralExp(genOrExp(OrExp orExp), Collector c) {
-    collectOrExp(orExp, c);
-}
-
-void collectOrExp(orOp(OrExp left, AndExp right), Collector c) {
-    collectOrExp(left, c);
-    collectAndExp(right, c);
-}
-
-void collectOrExp(orAndExp(AndExp andExp), Collector c) = collectAndExp(andExp, c);
-
-void collectAndExp(andOp(AndExp left, NegExp right), Collector c) {
-    collectAndExp(left, c);
-    collectNegExp(right, c);
-}
-
-void collectAndExp(andNegExp(NegExp negExp), Collector c) = collectNegExp(negExp, c);
-
-void collectNegExp(negOp(NegExp inner), Collector c)       = collectNegExp(inner, c);
-void collectNegExp(relExpWrap(RelExp relExp), Collector c) = collectRelExp(relExp, c);
-
-void collectRelExp(relBinary(Primary left, LogicOperator op, Primary right), Collector c) {
-    collectPrimary(left, c);
-    collectPrimary(right, c);
-}
-
-void collectRelExp(relPrimary(Primary primary), Collector c) = collectPrimary(primary, c);
-
-void collectPrimary(primaryId(str name), Collector c) {
-    c.use(name, primaryId(name), {variableId()});
-}
-
-void collectPrimary(primaryInt(int number), Collector c) {
-    c.fact(primaryInt(number), intType());
-}
-
-void collectPrimary(primaryParen(OrExp orExp), Collector c) = collectOrExp(orExp, c);
-
-// ─── PUNTO DE ENTRADA ────────────────────────────────────────────────────────
-
-TModel checkVeriLang(Module m) {
-    Collector c = newCollector("verilang", m, tconfig(
-        prettyPrintAType = prettyAType
-    ));
-    collect(m, c);
-    Facts facts = c.run();
-    Solver s = newSolver(m, facts);
-    return s.run();
-}
+// ─────────────────────────────────────────────
+// FILE CHECK
+// ─────────────────────────────────────────────
 
 void checkFile(loc file) {
-    m = loadModule(file);
-    tm = checkVeriLang(m);
+    pt = parseFile(file);
+
+    tm = checkVeriLang(pt);
+
     if (tm.messages == []) {
-        println("✓ No type errors found.");
-    } else {
+        println("✓ No semantic/type errors found.");
+    }
+    else {
         for (msg <- tm.messages) {
             println(msg);
         }
     }
+}
+
+void collect(
+    current:
+    (Module)
+    `defmodule <Identifier name> <Element elems> end`,
+    Collector c
+) { }
+
+void collect(
+    current:
+    (Expression)
+    `defexpression <GeneralExp g> end`,
+    Collector c
+) { }
+
+void collect(
+    current:
+    (RelExp)
+    `<Primary left> <LogicOperator op> <Primary right>`,
+    Collector c
+) { }
+
+void collect(
+    current: (Primary) `<Identifier name>`,
+    Collector c
+) {
+    println("FOUND IDENTIFIER: <name>");
+    c.use(name, {variableId()});
 }

@@ -83,4 +83,7 @@ data LogicOperator
 data Primary
     = primaryId(str name)
     | primaryInt(int number)
+    | primaryBool(bool bval)        // ← NUEVO
+    | primaryChar(str cval)         // ← NUEVO
+    | primaryString(str sval)       // ← NUEVO
     | primaryParen(OrExp orExp);
