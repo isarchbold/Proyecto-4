@@ -1,157 +1,178 @@
 module CodeGen
 
 import IO;
-import ParseTree;
-import Parse;
-import Syntax;
-import String;
 import List;
+import String;
+import AST;
+import Implode;
+import Parse;
 
 // ─── PUNTO DE ENTRADA ────────────────────────────────────────────────────────
 
-void run(loc file) {
-    str input = readFile(file);
-
-    println("═══════════════════════════════════════════════════════");
-    println("  VeriLang - Program Analysis");
-    println("  File: <file.file>");
-    println("═══════════════════════════════════════════════════════\n");
-
-    println("PARSING...");
-    try {
-        start[Module] tree = parse(#start[Module], input, file);
-        println("✓ Parse successful!\n");
-        analyzeModule(tree.top);
-        println("\n═══════════════════════════════════════════════════════");
-        println("✓ Analysis complete!");
-        println("═══════════════════════════════════════════════════════");
-    } catch ParseError(loc l): {
-        println("✗ Parse error at line <l.begin.line>, column <l.begin.column>");
-        println("  Check your syntax!");
-    }
+void main() {
+    cast = parseFile(|project://verilang/instance/ejemplo.vl|);
+    rVal = generator(cast);
+    println(rVal);
+    writeFile(|project://verilang/instance/output/output.txt|, rVal);
 }
 
-// ─── ANÁLISIS DEL MÓDULO ─────────────────────────────────────────────────────
-
-void analyzeModule((Module)`defmodule <Identifier name> <Element* elems> end`) {
-    println("MODULE: <name>\n");
-
-    list[str] vars        = [];
-    list[str] operators   = [];
-    list[str] expressions = [];
-    list[str] spaces      = [];
-    list[str] rules       = [];
-    list[str] defers      = [];
-
-    for (e <- elems) {
-        visit(e) {
-            case (Variable)`defvar <{VarDecl ","}+ vs> end`: {
-                for (/VarDecl vd := vs) vars += [trim(unparse(vd))];
-            }
-            case (Operator)`defoperator <Identifier opName> : <{Identifier "-\>"}+ params> end`: {
-                operators += ["<opName>"];
-            }
-            case (Expression)`defexpression <GeneralExp g> end`: {
-                expressions += [genExpToStr(g)];
-            }
-            case Space s: {
-                spaces += [trim(unparse(s))];
-            }
-            case (Defer)`defer <Identifier dName> end`: {
-                defers += ["<dName>"];
-            }
-}
-    }
-
-    println("VARIABLES:");
-    println("───────────────────────────────────────────────────────");
-    if (size(vars) > 0) {
-        for (v <- vars) println("  • <v>");
-    } else {
-        println("  (none)");
-    }
-    println();
-
-    println("OPERATORS:");
-    println("───────────────────────────────────────────────────────");
-    if (size(operators) > 0) {
-        for (op <- operators) println("  • <op>");
-    } else {
-        println("  (none)");
-    }
-    println();
-
-    println("EXPRESSIONS:");
-    println("───────────────────────────────────────────────────────");
-    if (size(expressions) > 0) {
-        int i = 1;
-        for (exp <- expressions) {
-            println("  [<i>] <exp>");
-            i += 1;
-        }
-    } else {
-        println("  (none)");
-    }
-    println();
-
-    if (size(spaces) > 0) {
-        println("SPACES:");
-        println("───────────────────────────────────────────────────────");
-        for (s <- spaces) println("  • <s>");
-        println();
-    }
-
-    if (size(defers) > 0) {
-        println("DEFERS:");
-        println("───────────────────────────────────────────────────────");
-        for (d <- defers) println("  • <d>");
-        println();
-    }
-
-    println("SUMMARY:");
-    println("───────────────────────────────────────────────────────");
-    println("  Variables  : <size(vars)>");
-    println("  Operators  : <size(operators)>");
-    println("  Expressions: <size(expressions)>");
-    println("  Spaces     : <size(spaces)>");
-    println("  Rules      : <size(rules)>");
-    println("  Defers     : <size(defers)>");
+str generator(cast) {
+    ast = loadModule(cast);
+    return generateModule(ast);
 }
 
-// ─── GENERALEXP → STRING ─────────────────────────────────────────────────────
+// ─── MODULE ──────────────────────────────────────────────────────────────────
 
-str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`) =
-    "(" + qToStr(q) + " <id> in <domain> . " + genExpToStr(body) + ")";
-
-str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> . <GeneralExp body> )`) =
-    "(" + qToStr(q) + " <id> . " + genExpToStr(body) + ")";
-
-str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> in <Identifier domain> <Attribute attr> )`) =
-    "(" + qToStr(q) + " <id> in <domain> " + attrToStr(attr) + ")";
-
-str genExpToStr((GeneralExp)`( <Quantifier q> <Identifier id> <Attribute attr> )`) =
-    "(" + qToStr(q) + " <id> " + attrToStr(attr) + ")";
-
-str genExpToStr((GeneralExp)`<OrExp op>`) = orToStr(op);
-
-str qToStr((Quantifier)`forall`) = "forall";
-str qToStr((Quantifier)`exists`) = "exists";
-
-str attrToStr(Attribute attr) {
-    list[str] strs = [trim(unparse(vd)) | /VarDecl vd := attr];
-    str content = intercalate(", ", strs);
-    return "[" + content + "]";
+str generateModule(modulo(str name, list[Element] elements)) {
+    rVal = "Module: " + name + "\n";
+    for (elem <- elements) {
+        rVal += generateElement(elem);
+    }
+    return rVal;
 }
 
-str orToStr((OrExp)`<OrExp l> or <AndExp r>`) = orToStr(l) + " or " + andToStr(r);
-str orToStr((OrExp)`<AndExp a>`)              = andToStr(a);
+// ─── ELEMENTS ────────────────────────────────────────────────────────────────
 
-str andToStr((AndExp)`<AndExp l> and <NegExp r>`) = andToStr(l) + " and " + negToStr(r);
-str andToStr((AndExp)`<NegExp n>`)                = negToStr(n);
+str generateElement(spaceElem(Space s))           = generateSpace(s);
+str generateElement(ruleElem(Rule r))             = generateRule(r);
+str generateElement(variableElem(Variable v))     = generateVariable(v);
+str generateElement(expressionElem(Expression e)) = generateExpression(e);
+str generateElement(operatorElem(Operator op))    = generateOperator(op);
+str generateElement(deferElem(Defer d))           = generateDefer(d);
 
-str negToStr((NegExp)`neg <NegExp n>`) = "neg " + negToStr(n);
-str negToStr((NegExp)`<RelExp r>`)     = trim(unparse(r));
+// ─── SPACE ───────────────────────────────────────────────────────────────────
 
-str primToStr((Primary)`<Identifier name>`) = "<name>";
-str primToStr((Primary)`<IntLiteral n>`)    = "<n>";
-str primToStr((Primary)`( <OrExp op> )`)     = "(" + orToStr(op) + ")";
+str generateSpace(spaceDef(str name)) =
+    "  Space: " + name + "\n";
+
+str generateSpace(spaceDefWithParent(str name, str parent)) =
+    "  Space: " + name + " extends " + parent + "\n";
+
+// ─── OPERATOR ────────────────────────────────────────────────────────────────
+
+str generateOperator(operatorDef(str name, list[str] parameters)) {
+    sep = " -\> ";
+    params = intercalate(sep, parameters);
+    return "  Operator: " + name + " : " + params + "\n";
+}
+
+// ─── VARIABLE ────────────────────────────────────────────────────────────────
+
+str generateVariable(varDef(list[VarDecl] vars)) {
+    rVal = "  Variables:\n";
+    for (v <- vars) {
+        rVal += generateVarDecl(v);
+    }
+    return rVal;
+}
+
+str generateVarDecl(varDeclSimple(str name)) =
+    "    " + name + "\n";
+
+str generateVarDecl(varDeclTyped(str name, str varType)) =
+    "    " + name + " : " + varType + "\n";
+
+// ─── RULE ────────────────────────────────────────────────────────────────────
+
+str generateRule(ruleDef(Application left, Application right)) {
+    arrow = " -\> ";
+    return "  Rule: " + generateApplication(left) + arrow + generateApplication(right) + "\n";
+}
+
+str generateApplication(application(str name, list[AppArg] arguments)) {
+    args = intercalate(", ", [generateArg(a) | a <- arguments]);
+    return name + "(" + args + ")";
+}
+
+str generateArg(argId(str name))      = name;
+str generateArg(argApp(Application a)) = generateApplication(a);
+
+// ─── DEFER ───────────────────────────────────────────────────────────────────
+
+str generateDefer(deferDef(str name)) =
+    "  Defer: " + name + "\n";
+
+// ─── EXPRESSION ──────────────────────────────────────────────────────────────
+
+str generateExpression(expressionDef(GeneralExp genExp)) =
+    "  Expression: " + generateGeneralExp(genExp) + "\n";
+
+// ─── GENERAL EXP ─────────────────────────────────────────────────────────────
+
+str generateGeneralExp(quantDotIn(Quantifier q, str id, str domain, GeneralExp body)) =
+    generateQuantifier(q) + " " + id + " in " + domain + " . " + generateGeneralExp(body);
+
+str generateGeneralExp(quantDot(Quantifier q, str id, GeneralExp body)) =
+    generateQuantifier(q) + " " + id + " . " + generateGeneralExp(body);
+
+str generateGeneralExp(quantAttrIn(Quantifier q, str id, str domain, Attribute attr)) =
+    generateQuantifier(q) + " " + id + " in " + domain + " " + generateAttribute(attr);
+
+str generateGeneralExp(quantAttr(Quantifier q, str id, Attribute attr)) =
+    generateQuantifier(q) + " " + id + " " + generateAttribute(attr);
+
+str generateGeneralExp(genOrExp(OrExp orExp)) =
+    generateOrExp(orExp);
+
+// ─── QUANTIFIER ──────────────────────────────────────────────────────────────
+
+str generateQuantifier(forall()) = "forall";
+str generateQuantifier(exists()) = "exists";
+
+// ─── ATTRIBUTE ───────────────────────────────────────────────────────────────
+
+str generateAttribute(attribute(list[VarDecl] items)) {
+    parts = [generateVarDeclInline(i) | i <- items];
+    return "[" + intercalate(", ", parts) + "]";
+}
+
+str generateVarDeclInline(varDeclSimple(str name))            = name;
+str generateVarDeclInline(varDeclTyped(str name, str varType)) = name + " : " + varType;
+
+// ─── OR EXP ──────────────────────────────────────────────────────────────────
+
+str generateOrExp(orOp(OrExp left, AndExp right)) =
+    generateOrExp(left) + " or " + generateAndExp(right);
+
+str generateOrExp(orAndExp(AndExp andExp)) =
+    generateAndExp(andExp);
+
+// ─── AND EXP ─────────────────────────────────────────────────────────────────
+
+str generateAndExp(andOp(AndExp left, NegExp right)) =
+    generateAndExp(left) + " and " + generateNegExp(right);
+
+str generateAndExp(andNegExp(NegExp negExp)) =
+    generateNegExp(negExp);
+
+// ─── NEG EXP ─────────────────────────────────────────────────────────────────
+
+str generateNegExp(negOp(NegExp inner)) =
+    "neg " + generateNegExp(inner);
+
+str generateNegExp(relExpWrap(RelExp relExp)) =
+    generateRelExp(relExp);
+
+// ─── REL EXP ─────────────────────────────────────────────────────────────────
+
+str generateRelExp(relBinary(Primary left, LogicOperator op, Primary right)) =
+    generatePrimary(left) + " " + generateLogicOp(op) + " " + generatePrimary(right);
+
+str generateRelExp(relPrimary(Primary primary)) =
+    generatePrimary(primary);
+
+// ─── PRIMARY ─────────────────────────────────────────────────────────────────
+
+str generatePrimary(primaryId(str name))      = name;
+str generatePrimary(primaryInt(int number))   = "<number>";
+str generatePrimary(primaryParen(OrExp orExp)) = "(" + generateOrExp(orExp) + ")";
+
+// ─── LOGIC OPERATOR ──────────────────────────────────────────────────────────
+
+str generateLogicOp(eqOp())    = "=\>";
+str generateLogicOp(equivOp()) = "equiv";
+str generateLogicOp(gtOp())    = "\>";
+str generateLogicOp(ltOp())    = "\<";
+str generateLogicOp(leOp())    = "\<=";
+str generateLogicOp(geOp())    = "\>=";
+str generateLogicOp(neOp())    = "\<\>";
