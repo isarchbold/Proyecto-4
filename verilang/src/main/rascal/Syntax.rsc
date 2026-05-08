@@ -1,193 +1,140 @@
 module Syntax
 
-layout WS = [\ \t]*;
+layout WS = [\ \t\n\r]*  !>> [\ \t\n\r];
 
-
-//ELEMENTO DE INICIO MODULE
 start syntax Module 
-    = modulo: 'defmodule' Identifier name LineSpace?
-    ('using' Identifier LineSpace)* imports 
+    = modulo: 'defmodule' Identifier name
     Element* elements
     'end'
 ;
 
-//ELEMENT
 syntax Element
-    = ( Space
-    | Rule
-    | Variable
-    | Expression
-    | Operator
-    | Relation
-    | Equation
-    ) LineSpace?
+    = spaceElem:      Space space
+    | ruleElem:       Rule rule
+    | variableElem:   Variable variable
+    | expressionElem: Expression expression
+    | operatorElem:   Operator operator
+    | deferElem:      Defer def
 ;
 
-// SPACE
 syntax Space
-    = spaceDef:
-    "defspace" Identifier name
-    ("\<" Identifier parent)?
-    LineSpace? 'end'
+    = spaceDef:           "defspace" Identifier name 'end'
+    | spaceDefWithParent: "defspace" Identifier name "\<" Identifier parent 'end'
 ;
 
-//OPERATOR
 syntax Operator
     = operatorDef:
-    'defoperator' Identifier name ':' (Type '-\>')+ Type returnType
-    LineSpace? 'end'
-;
-//RELATION
-syntax Relation
-    = relationDef:
-    'defrelation' Identifier name ':' (Type '-\>')+ Type returnType
-    LineSpace? 'end'
-;
-//EQUATION
-syntax Equation
-    = equationDef:
-    'defequation' GeneralExp left '=' GeneralExp right Attribute? attr
-    LineSpace? 'end'
+    'defoperator' Identifier name ':' {Identifier '-\>'}+ parameters 'end'
 ;
 
-//VARIABLE
 syntax Variable
     = varDef:
-    'defvar' List (','List)* vars
-    LineSpace? 'end'
+    'defvar' {VarDecl ','}+ vars
+    'end'
 ;
 
-//LIST 
-syntax List
-    = lista:
-    Identifier (':' Type)?
+syntax VarDecl
+    = varDeclTyped:  Identifier name ':' Identifier varType
+    | varDeclSimple: Identifier name
 ;
 
-//RULE 
 syntax Rule
     = ruleDef:
-    'defrule' '(' Application leftSide ')' "-\>" '(' Application rightSide ')' 
-    LineSpace? 'end'
+    'defrule' '(' Application leftSide ')' '-\>' '(' Application rightSide ')'
+    'end'
 ;
 
-// APPLICATION
 syntax Application
     = application:
-    Identifier '(' Identifier (',' Identifier)* ')'
+    Identifier name '(' {AppArg ','}+ arguments ')'
 ;
 
-// ATTRIBUTE
+syntax AppArg
+    = argApp: Application app
+    | argId:  Identifier name
+;
+
 syntax Attribute
     = attribute:
-    '[' List (',' List)* ']'
+    '[' {VarDecl ','}+ lists ']'
 ;
 
-//QUANTIFIER 
-syntax Quantifier
-    = quantifier: 'forall' | 'exists' 
+syntax Defer
+    = deferDef:
+    'defer' Identifier name
+    'end'
 ;
 
-//LOGIC OPERATOR
-syntax LogicOperator
-    = op:
-    '=\>' | '≡' | '\>' | '\<' | '\<=' | '\>=' | '\<\>'
-;
-
-// PRIMARY
-syntax Primary
-    = Identifier
-    | IntLiteral
-    | CharLiteral
-    | StringLiteral
-    | BoolLiteral
-    | '(' OrExp ')'
-;
-
-//EXPRESSION 
 syntax Expression
-    = expressionDef :
-    'defexpression' GeneralExp Attribute? attr LineSpace? 'end'
+    = expressionDef:
+    'defexpression' GeneralExp genExp
+    'end'
 ;
 
-// TOP
 syntax GeneralExp
-    = exp: '(' Quantifier Identifier ('in' Identifier)?  (('.' GeneralExp) | Attribute attr ) ')'
-    | OrExp
+    = quantDotIn:  '(' Quantifier q Identifier id 'in' Identifier domain '.' GeneralExp body ')'
+    | quantDot:    '(' Quantifier q Identifier id '.' GeneralExp body ')'
+    | quantAttrIn: '(' Quantifier q Identifier id 'in' Identifier domain Attribute attr ')'
+    | quantAttr:   '(' Quantifier q Identifier id Attribute attr ')'
+    | genOrExp:    OrExp orExp   // ← debe ser "genOrExp", igual que en AST
 ;
 
-//OR
+syntax Quantifier
+    = forall: 'forall'
+    | exists: 'exists'
+;
+
 syntax OrExp
-    = OrExp 'or' AndExp | AndExp
+    = orOp:     OrExp left 'or' AndExp right
+    | orAndExp: AndExp andExp
 ;
 
-//AND
 syntax AndExp
-    =  AndExp 'and' NegExp
-    | NegExp
+    = andOp:     AndExp left 'and' NegExp right
+    | andNegExp: NegExp negExp
 ;
 
-//NOT
 syntax NegExp
-    = NegExp: 'neg' NegExp
-    | RelExp
+    = negOp:      'neg' NegExp inner
+    | relExpWrap: RelExp relExp
 ;
 
-// RELACIONES
 syntax RelExp
-    = Primary LogicOperator Primary 
-    | Primary
+    = relBinary:  Primary left LogicOperator op Primary right
+    | relPrimary: Primary primary
 ;
 
-// TYPE
-syntax Type
-    = intType: 'int'
-    | boolType: 'bool'
-    | stringType: 'string'
-    | charType: 'char'
+syntax LogicOperator
+    = eqOp:    '=\>'
+    | equivOp: '≡'
+    | gtOp:    '\>'
+    | ltOp:    '\<'
+    | leOp:    '\<='
+    | geOp:    '\>='
+    | neOp:    '\<\>'
+;
+
+syntax Primary
+    = primaryId:     Identifier name
+    | primaryInt:    IntLiteral number
+    | primaryBool:   BoolLiteral bval
+    | primaryChar:   CharLiteral cval
+    | primaryString: StringLiteral sval
+    | primaryParen:  '(' OrExp orExp ')'
 ;
 
 
-// CHAR LITERAL
-lexical CharLiteral
-    = "\'" ![\'] "\'"
-;
+lexical Identifier = Letter (Letter | [0-9] | "-")* \ Reserved;
+lexical Letter     = [a-zA-Z];
+lexical IntLiteral = [0-9]+;
 
-// STRING LITERAL
-lexical StringLiteral
-    = "\"" ![\"]* "\""
-;
+lexical BoolLiteral  = "true" | "false";
+lexical CharLiteral  = "\'" ![\'] "\'";
+lexical StringLiteral = "\"" ![\"]* "\"";
 
-// BOOL LITERAL
-lexical BoolLiteral
-    = 'true'
-    | 'false'
-;
-
-// IDENTIFIER TAIL
-lexical IdTail = (Letter | IntLiteral | "-")+;
-
-
-//Letter
-lexical Letter = [a-zA-Z]
-;
-//IDENTIFIER
-lexical Identifier = Letter IdTail? \ Reserved
-;
-
-//INTLITERAL
-lexical IntLiteral = [0-9]+
-;
-
-lexical LineSpace = ('\n'|'\r\n')+
-;
-
-keyword Reserved 
+keyword Reserved
     = "defmodule" | "using" | "defspace" | "defrule" | "end"
-    | "defoperator" | "defrelation" | "defequation"
-    | "defexpression" | "forall" | "exists"
-    | "defvar" | "and" | "or" | "neg" | "in"
-    | "int" | "bool" | "string" | "char"
-    | "true" | "false"
-    | '=\>' | '≡' | '\>' 
-    | '\<' | '\<=' | '\>=' | '\<\>'
+    | "defoperator" | "defexpression" | "forall" | "exists"
+    | "defvar" | "defer"
+    | "and" | "or" | "neg" | "in"
 ;

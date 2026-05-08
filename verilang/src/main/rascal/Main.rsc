@@ -1,8 +1,18 @@
 module Main
 
 import IO;
-import ParseTree;
-import Syntax;
+import CodeGen;
+import Parse;
+import AST;
+
+void main() {
+    loc file = |project://verilang/instance/ejemplo.vl|;
+    println("Running VeriLang on: <file>");
+    cast = parseFile(file);
+    rVal = generator(cast);
+    println(rVal);
+    writeFile(|project://verilang/instance/output/output.txt|, rVal);
+}
 
 public void runText(str program) {
     Tree parsed = parse(#start[Module], program);

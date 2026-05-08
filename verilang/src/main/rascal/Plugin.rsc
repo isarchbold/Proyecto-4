@@ -1,32 +1,32 @@
 module Plugin
 
-import IO;
-import ParseTree;
 import util::Reflective;
 import util::IDEServices;
 import util::LanguageServer;
-import Relation;
-
-import Syntax;
+import ParseTree;
+import Parse;
+import Implode;
+import Checker;
+import IO;
 
 PathConfig pcfg = getProjectPathConfig(|project://verilang|);
 
-Language tdslLang = language(
-    pcfg,
-    "TDSL",
-    "tdsl",
-    "Plugin",
-    "contribs"
-);
+Language veriLang = language(pcfg, "VeriLang", "vl", "Plugin", "contribs");
 
 set[LanguageService] contribs() = {
     parser(start[Module] (str program, loc src) {
-        println("Run parser");
-        return parse(#start[Module], program, src);
+        return parseStr(program);
+    }),
+    // Checker integrado al IDE:
+    checker(Summary (str program, loc src) {
+        pt = parseStr(program);
+        m = loadModule(pt);
+        tm = checkVeriLang(m);
+        return summary(src, tm.messages);
     })
 };
 
-public void registerPlugin() {
-    registerLanguage(tdslLang);
-    println("Plugin loaded!");
+void main() {
+    registerLanguage(veriLang);
+    println("VeriLang plugin loaded with TypePal!");
 }

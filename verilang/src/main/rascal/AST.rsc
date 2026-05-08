@@ -1,123 +1,89 @@
 module AST
 
-//Inicio module
-data Module 
-    = modulo(str name, list[str] imports, list[Element] elements);
+data Module
+    = modulo(str name, list[Element] elements);
 
-//Element
 data Element
-    = spaceElement(Space space)
-    | ruleElement(Rule rule)
-    | variableElement(Variable variable)
-    | expressionElement(Expression expression)
-    | operatorElement(Operator operator)
-    | relationElement(Relation relation)
-    | equationElement(Equation equation)
-;
+    = spaceElem(Space space)
+    | ruleElem(Rule rule)
+    | variableElem(Variable variable)
+    | expressionElem(Expression expression)
+    | operatorElem(Operator operator)
+    | deferElem(Defer def);
 
-//Space
 data Space
     = spaceDef(str name)
     | spaceDefWithParent(str name, str parent);
 
-//Type
-data Type
-    = intType()
-    | boolType()
-    | stringType()
-    | charType()
-    | customType(str name);
-
-//Operator
 data Operator
-    = operatorDef(str name, list[Type] parameters, Type returnType);
+    = operatorDef(str name, list[str] parameters);
 
-//Relation
-data Relation
-    = relationDef(str name, list[Type] parameters, Type returnType);
-
-//Equation
-data Equation
-    = equationDef(GeneralExp left, GeneralExp right);
-
-//Variable
 data Variable
     = varDef(list[VarDecl] vars);
 
-//Lista 
 data VarDecl
-    = lista(str name)
-    | listaTyped(str name, Type varType);
+    = varDeclSimple(str name)
+    | varDeclTyped(str name, str varType);
 
-//Rule
-data Rule 
+data Rule
     = ruleDef(Application leftSide, Application rightSide);
 
-//Application
 data Application
-    = application(str name, list[str] arguments);
+    = application(str name, list[AppArg] arguments);
 
-//Attribute
+data AppArg
+    = argId(str name)
+    | argApp(Application app);
+
 data Attribute
-    = attribute(list[VarDecl] lists); 
+    = attribute(list[VarDecl] lists);
 
-//Top
+data Defer
+    = deferDef(str name);
+
+data Expression
+    = expressionDef(GeneralExp genExp);
+
 data GeneralExp
-    = quantExp(Quantifier q, str id, GeneralExp body)
-    | quantExpIn(Quantifier q, str id, str domain, GeneralExp body)
-    | quantExpAttr(Quantifier q, str id, Attribute attr)
-    | quantExpInAttr(Quantifier q, str id, str domain, Attribute attr)
-    | orExp(OrExp exp);
+    = quantDotIn(Quantifier q, str id, str domain, GeneralExp body)
+    | quantDot(Quantifier q, str id, GeneralExp body)
+    | quantAttrIn(Quantifier q, str id, str domain, Attribute attr)
+    | quantAttr(Quantifier q, str id, Attribute attr)
+    | genOrExp(OrExp orExp);
 
-//Quantifier
 data Quantifier
     = forall()
     | exists();
 
-//Or
 data OrExp
-    = or(OrExp left, AndExp right)
-    | andExp(AndExp exp);
+    = orOp(OrExp left, AndExp right)
+    | orAndExp(AndExp andExp);
 
-//And
 data AndExp
-    = and(AndExp left, NegExp right)
-    | negExp(NegExp exp);
+    = andOp(AndExp left, NegExp right)
+    | andNegExp(NegExp negExp);
 
-//Neg
 data NegExp
-    = neg(NegExp negExpression)
-    | relExp(RelExp relationalExpression);
+    = negOp(NegExp inner)
+    | relExpWrap(RelExp relExp);
 
-//relaciones
 data RelExp
-    = relExp(Primary left, LogicOperator op, Primary right)
-    | primary(Primary p);
+    = relBinary(Primary left, LogicOperator op, Primary right)
+    | relPrimary(Primary primary);
 
-//Logic operator
 data LogicOperator
-    = op(str operator);
+    = eqOp()
+    | equivOp()
+    | gtOp()
+    | ltOp()
+    | leOp()
+    | geOp()
+    | neOp();
 
-//Primary
-data Primary   
-    = id(str name)
-    | intLit(str number)
-    | charValue(str v)
-    | stringValue(str v)
-    | booleanValue(str v)
-    | parenthesis(OrExp exp)
-;
-
-//expression
-data Expression
-    = expressionDef(GeneralExp exp)
-    ;
-
-
-
-
-
-
-
-
-
+data Primary
+    = primaryId(str name)
+    | primaryInt(int number)
+    | primaryBool(bool bval)        // ← NUEVO
+    | primaryChar(str cval)         // ← NUEVO
+    | primaryString(str sval)       // ← NUEVO
+    | primaryParen(OrExp orExp);

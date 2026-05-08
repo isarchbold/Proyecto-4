@@ -1,56 +1,202 @@
 module Checker
 
+import Syntax;
+import Parse;
+import ParseTree;
+import String;
 import IO;
-import AST;
 
-// ======================
-// TYPE CHECKING
-// ======================
+extend analysis::typepal::TypePal;
 
-public bool sameType(Type expected, Type actual) {
-    return expected == actual;
+// ─────────────────────────────────────────────
+// ROLES
+// ─────────────────────────────────────────────
+
+data IdRole
+    = variableId()
+    | operatorId()
+    | spaceId();
+
+// ─────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────
+
+data AType
+    = intType()
+    | boolType()
+    | charType()
+    | stringType()
+    | unknownType();
+
+// ─────────────────────────────────────────────
+// TYPE HELPERS
+// ─────────────────────────────────────────────
+
+AType typeFromString("int") = intType();
+AType typeFromString("bool") = boolType();
+AType typeFromString("char") = charType();
+AType typeFromString("string") = stringType();
+AType typeFromString(str _) = unknownType();
+
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+
+private TypePalConfig getModulesConfig() = tconfig(
+    verbose = true,
+    logTModel = true,
+    logAttempts = true,
+    logSolverIterations = true,
+    logSolverSteps = true
+);
+
+// ─────────────────────────────────────────────
+// SIMPLE MANUAL TYPE CHECKING
+// ─────────────────────────────────────────────
+
+void manualTypeCheck(Tree pt) {
+
+    txt = unparse(pt);
+
+    // string compared with integer
+    if (/\".*\"[\ ]*\>[\ ]*[0-9]+/ := txt) {
+        println("TYPE ERROR cannot compare string with integer using comparadores");
+    }
+
+    // boolean compared with integer
+    if (/(true|false)[\ ]*\>[\ ]*[0-9]+/ := txt) {
+        println("TYPE ERROR: cannot compare boolean with integer using comparadores");
+    }
+
+    // string AND boolean
+    if (/\".*\"[\ ]*and[\ ]*(true|false)/ := txt) {
+        println("TYPE ERROR: operator and requires booleans");
+    }
 }
 
-public void checkType(str elementName, Type expected, Type actual) {
-    if (expected == actual) {
-        println("Tipo correcto en <elementName>");
+// ─────────────────────────────────────────────
+// TYPEPAL CHECKER
+// ─────────────────────────────────────────────
+
+public TModel checkVeriLang(Tree pt) {
+
+    if (pt has top) {
+        pt = pt.top;
+    }
+
+    // manual type checks
+    manualTypeCheck(pt);
+
+    TypePalConfig cfg = getModulesConfig();
+
+    Collector c = newCollector("VeriLang", pt, cfg);
+
+    visit(pt) {
+
+        // ─────────────────────────────
+        // VARIABLE DECLARATIONS
+        // ─────────────────────────────
+
+        case current:(VarDecl)
+            `<Identifier name> : <Identifier typ>`: {
+
+            tp = typeFromString("<typ>");
+
+            dt = defType(tp);
+
+            println("DEFINE VARIABLE: <name>");
+
+            c.define("<name>", variableId(), current, dt);
+        }
+
+        case current:(VarDecl)
+            `<Identifier name>`: {
+
+            dt = defType(unknownType());
+
+            println("DEFINE VARIABLE: <name>");
+
+            c.define("<name>", variableId(), current, dt);
+        }
+
+        // ─────────────────────────────
+        // VARIABLE USES
+        // ─────────────────────────────
+
+        case current:(Primary)
+            `<Identifier name>`: {
+
+            println("USE VARIABLE: <name>");
+
+            c.use(name, {variableId()});
+        }
+
+        // ─────────────────────────────
+        // SPACE DEFINITIONS
+        // ─────────────────────────────
+
+        case current:(Space)
+            `defspace <Identifier name> end`: {
+
+            dt = defType(unknownType());
+
+            c.define("<name>", spaceId(), current, dt);
+        }
+
+        case current:(Space)
+            `defspace <Identifier name> \< <Identifier parent> end`: {
+
+            dt = defType(unknownType());
+
+            c.define("<name>", spaceId(), current, dt);
+
+            c.use(parent, {spaceId()});
+        }
+
+        // ─────────────────────────────
+        // OPERATOR DEFINITIONS
+        // ─────────────────────────────
+
+        case current:(Operator)
+            `defoperator <Identifier name> : <Identifier t1> -\> <Identifier t2> end`: {
+
+            dt = defType(unknownType());
+
+            c.define("<name>", operatorId(), current, dt);
+        }
+
+        // ─────────────────────────────
+        // QUANTIFIER DOMAINS
+        // ─────────────────────────────
+
+        case current:(GeneralExp)
+            `( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`: {
+
+            c.use(domain, {spaceId(), variableId()});
+        }
+    }
+
+    return newSolver(pt, c.run()).run();
+}
+
+// ─────────────────────────────────────────────
+// FILE CHECK
+// ─────────────────────────────────────────────
+
+void checkFile(loc file) {
+
+    pt = parseFile(file);
+
+    tm = checkVeriLang(pt);
+
+    if (tm.messages == []) {
+
+        println("✓ No semantic/type errors found");
     }
     else {
-        println("Error de tipo en <elementName>");
-        println("Esperado: <expected>");
-        println("Encontrado: <actual>");
+
+        for (msg <- tm.messages) {
+            println(msg);
+        }
     }
-}
-
-// ======================
-// EXISTENCE RULE
-// ======================
-
-public bool existsElement(str elementName, set[str] declaredElements) {
-    return elementName in declaredElements;
-}
-
-public void checkExists(str elementName, set[str] declaredElements) {
-    if (elementName in declaredElements) {
-        println("Elemento <elementName> existe.");
-    }
-    else {
-        println("Error: el elemento <elementName> no existe.");
-    }
-}
-
-// ======================
-// TESTS
-// ======================
-
-public void testChecker() {
-    println("Probando checker...");
-
-    checkType("x", intType(), intType());
-    checkType("activo", boolType(), intType());
-
-    set[str] declared = {"x", "y", "activo", "mayor", "igual"};
-
-    checkExists("x", declared);
-    checkExists("z", declared);
 }

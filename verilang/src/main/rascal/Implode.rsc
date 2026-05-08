@@ -1,9 +1,9 @@
 module Implode
 
-import ParseTree;
 import Syntax;
+import Parse;
 import AST;
+import ParseTree;
 
-public AST::Module implodeProgram(Tree parsed) {
-    return implode(#AST::Module, parsed);
-}
+public Module loadModule(start[Module] pt) = implode(#Module, pt.top);
+public Module loadModule(loc l) = loadModule(parseFile(l));

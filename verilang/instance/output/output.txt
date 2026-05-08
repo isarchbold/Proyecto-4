@@ -1,0 +1,8 @@
+Module: Test1
+  Variables:
+    x : int
+    y : int
+  Operator: mayor : int -> int -> bool
+  Expression: forall y in dominio . x
+  Expression: forall x in dominio . (neg x and y)
+  Expression: exists x in dominio . (x > x)

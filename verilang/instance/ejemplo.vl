@@ -3,10 +3,10 @@ defmodule Test1
 defvar x:int, y:int
 end
 
-defexpression (forall y in dominio . x)
+defoperator mayor : int -> int -> bool
 end
 
-defoperator mayor : int -> int -> bool
+defexpression (forall y in dominio . x)
 end
 
 defexpression (forall x in dominio . (neg x and y))
