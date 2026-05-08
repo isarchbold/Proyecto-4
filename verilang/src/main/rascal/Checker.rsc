@@ -70,7 +70,8 @@ public TModel checkVeriLang(Tree pt) {
         // VARIABLE DECLARATIONS
         // ─────────────────────────────
 
-        case (VarDecl) `<Identifier name> : <Identifier typ>`: {
+        case current:(VarDecl)
+            `<Identifier name> : <Identifier typ>`: {
 
             tp = typeFromString("<typ>");
 
@@ -78,23 +79,25 @@ public TModel checkVeriLang(Tree pt) {
 
             println("DEFINE VARIABLE: <name>");
 
-            c.define(name, variableId(), name, dt);
+            c.define("<name>", variableId(), current, dt);
         }
 
-        case (VarDecl) `<Identifier name>`: {
+        case current:(VarDecl)
+            `<Identifier name>`: {
 
             dt = defType(unknownType());
 
             println("DEFINE VARIABLE: <name>");
 
-            c.define(name, variableId(), name, dt);
+            c.define("<name>", variableId(), current, dt);
         }
 
         // ─────────────────────────────
         // VARIABLE USES
         // ─────────────────────────────
 
-        case (Primary) `<Identifier name>`: {
+        case current:(Primary)
+            `<Identifier name>`: {
 
             println("USE VARIABLE: <name>");
 
@@ -105,20 +108,20 @@ public TModel checkVeriLang(Tree pt) {
         // SPACE DEFINITIONS
         // ─────────────────────────────
 
-        case (Space)
+        case current:(Space)
             `defspace <Identifier name> end`: {
 
             dt = defType(unknownType());
 
-            c.define(name, spaceId(), name, dt);
+            c.define("<name>", spaceId(), current, dt);
         }
 
-        case (Space)
+        case current:(Space)
             `defspace <Identifier name> \< <Identifier parent> end`: {
 
             dt = defType(unknownType());
 
-            c.define(name, spaceId(), name, dt);
+            c.define("<name>", spaceId(), current, dt);
 
             c.use(parent, {spaceId()});
         }
@@ -127,19 +130,19 @@ public TModel checkVeriLang(Tree pt) {
         // OPERATOR DEFINITIONS
         // ─────────────────────────────
 
-        case (Operator)
+        case current:(Operator)
             `defoperator <Identifier name> : <Identifier t1> -\> <Identifier t2> end`: {
 
             dt = defType(unknownType());
 
-            c.define(name, operatorId(), name, dt);
+            c.define("<name>", operatorId(), current, dt);
         }
 
         // ─────────────────────────────
         // QUANTIFIER DOMAINS
         // ─────────────────────────────
 
-        case (GeneralExp)
+        case current:(GeneralExp)
             `( <Quantifier q> <Identifier id> in <Identifier domain> . <GeneralExp body> )`: {
 
             c.use(domain, {spaceId(), variableId()});
