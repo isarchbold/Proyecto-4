@@ -9,16 +9,16 @@ start syntax Module
 ;
 
 syntax Element
-    = Space
-    | Rule
-    | Variable
-    | Expression
-    | Operator
-    | Defer
+    = spaceElem:      Space space
+    | ruleElem:       Rule rule
+    | variableElem:   Variable variable
+    | expressionElem: Expression expression
+    | operatorElem:   Operator operator
+    | deferElem:      Defer def
 ;
 
 syntax Space
-    = spaceDef: "defspace" Identifier name 'end'
+    = spaceDef:           "defspace" Identifier name 'end'
     | spaceDefWithParent: "defspace" Identifier name "\<" Identifier parent 'end'
 ;
 
@@ -34,7 +34,7 @@ syntax Variable
 ;
 
 syntax VarDecl
-    = varDeclTyped: Identifier name ':' Identifier varType
+    = varDeclTyped:  Identifier name ':' Identifier varType
     | varDeclSimple: Identifier name
 ;
 
@@ -50,8 +50,8 @@ syntax Application
 ;
 
 syntax AppArg
-    = argApp: Application
-    | argId:  Identifier
+    = argApp: Application app
+    | argId:  Identifier name
 ;
 
 syntax Attribute
@@ -72,11 +72,11 @@ syntax Expression
 ;
 
 syntax GeneralExp
-    = quantDotIn:    '(' Quantifier q Identifier id 'in' Identifier domain '.' GeneralExp body ')'
-    | quantDot:      '(' Quantifier q Identifier id '.' GeneralExp body ')'
-    | quantAttrIn:   '(' Quantifier q Identifier id 'in' Identifier domain Attribute attr ')'
-    | quantAttr:     '(' Quantifier q Identifier id Attribute attr ')'
-    | orExpGen:      OrExp orExp
+    = quantDotIn:  '(' Quantifier q Identifier id 'in' Identifier domain '.' GeneralExp body ')'
+    | quantDot:    '(' Quantifier q Identifier id '.' GeneralExp body ')'
+    | quantAttrIn: '(' Quantifier q Identifier id 'in' Identifier domain Attribute attr ')'
+    | quantAttr:   '(' Quantifier q Identifier id Attribute attr ')'
+    | genOrExp:    OrExp orExp   // ← debe ser "genOrExp", igual que en AST
 ;
 
 syntax Quantifier
