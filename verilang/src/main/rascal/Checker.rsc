@@ -6,7 +6,7 @@ import ParseTree;
 import String;
 import IO;
 
-extend analysis::typepal::TypePal;
+import analysis::typepal::TypePal;
 
 // ─────────────────────────────────────────────
 // ROLES
@@ -54,24 +54,25 @@ private TypePalConfig getModulesConfig() = tconfig(
 // SIMPLE MANUAL TYPE CHECKING
 // ─────────────────────────────────────────────
 
-void manualTypeCheck(Tree pt) {
+list[str] manualTypeCheck(Tree pt) {
+
+    list[str] errors = [];
 
     txt = unparse(pt);
 
-    // string compared with integer
     if (/\".*\"[\ ]*\>[\ ]*[0-9]+/ := txt) {
-        println("TYPE ERROR cannot compare string with integer using comparadores");
+        errors += "TYPE ERROR: cannot compare values of type string and int";
     }
 
-    // boolean compared with integer
     if (/(true|false)[\ ]*\>[\ ]*[0-9]+/ := txt) {
-        println("TYPE ERROR: cannot compare boolean with integer using comparadores");
+        errors += "TYPE ERROR: cannot compare values of type boolean and int";
     }
 
-    // string AND boolean
     if (/\".*\"[\ ]*and[\ ]*(true|false)/ := txt) {
-        println("TYPE ERROR: operator and requires booleans");
+        errors += "TYPE ERROR: operator and requires boolean operands";
     }
+
+    return errors;
 }
 
 // ─────────────────────────────────────────────
@@ -85,7 +86,6 @@ public TModel checkVeriLang(Tree pt) {
     }
 
     // manual type checks
-    manualTypeCheck(pt);
 
     TypePalConfig cfg = getModulesConfig();
 
@@ -187,13 +187,20 @@ void checkFile(loc file) {
 
     pt = parseFile(file);
 
+    list[str] typeErrors = manualTypeCheck(pt);
+
     tm = checkVeriLang(pt);
 
-    if (tm.messages == []) {
+    if (typeErrors == [] && tm.messages == []) {
 
+        println("No semantic or type errors found");
         println("Semantic analysis completed");
     }
     else {
+
+        for (err <- typeErrors) {
+            println(err);
+        }
 
         for (msg <- tm.messages) {
             println(msg);
