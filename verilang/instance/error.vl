@@ -1,6 +1,6 @@
 defmodule ErrorTest
 
-defexpression (x > y)
+defexpression (forall x in dominio . )
 end
 
 end
